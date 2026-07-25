@@ -53,14 +53,13 @@ def fetch_rss():
         except Exception as e:
             print(f"⚠️ RSS 源 {url} 解析失败: {e}")
             continue
-    # 去重并截取前 50 条
     unique_articles = list(dict.fromkeys(articles))
     return unique_articles[:50]
 
 def generate_chain(text):
     try:
         resp = nvidia_client.chat.completions.create(
-            model="z-ai/glm-5.2",
+            model="meta/llama-3.1-70b-instruct",  # 更稳定的模型
             messages=[
                 {"role": "system", "content": "金融推理专家，只输出JSON。"},
                 {"role": "user", "content": PROMPT_TEMPLATE.format(event=text)}
@@ -69,13 +68,24 @@ def generate_chain(text):
             max_tokens=1024
         )
         raw = resp.choices[0].message.content
+        print(f"📝 原始返回: {raw[:200]}...")  # 调试打印
+        
+        # 提取 JSON
         if "```json" in raw:
             raw = raw.split("```json")[1].split("```")[0].strip()
         elif "```" in raw:
             raw = raw.split("```")[1].split("```")[0].strip()
+        
+        # 找到第一个 { 和最后一个 }
+        start = raw.find('{')
+        end = raw.rfind('}') + 1
+        if start != -1 and end > start:
+            raw = raw[start:end]
+        
         return json.loads(raw)
-    except json.JSONDecodeError:
-        print(f"⚠️ JSON 解析失败: {raw[:200] if 'raw' in locals() else '空响应'}")
+    except json.JSONDecodeError as e:
+        print(f"⚠️ JSON 解析失败: {e}")
+        print(f"⚠️ 原始内容: {raw[:300] if 'raw' in locals() else '空响应'}")
         return None
     except Exception as e:
         print(f"⚠️ API 调用失败: {e}")
