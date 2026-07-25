@@ -37,7 +37,6 @@ Only JSON, no extra text.
 """
 
 def fetch_rss():
-    """Fetch from 7 RSS sources, return up to 50 unique articles"""
     feeds = [
         "https://www.cnbc.com/id/100003114/device/rss/rss.html",
         "https://finance.yahoo.com/news/rssindex",
@@ -56,7 +55,6 @@ def fetch_rss():
         except Exception as e:
             print(f"⚠️ RSS feed failed: {url} - {e}")
             continue
-    # Remove duplicates
     seen = set()
     unique = []
     for a in articles:
@@ -66,17 +64,14 @@ def fetch_rss():
     return unique[:50]
 
 def extract_json(raw: str) -> str:
-    """Extract clean JSON from mixed text response"""
     if "```json" in raw:
         raw = raw.split("```json")[1].split("```")[0].strip()
     elif "```" in raw:
         raw = raw.split("```")[1].split("```")[0].strip()
-    
     start = raw.find('{')
     end = raw.rfind('}') + 1
     if start != -1 and end > start:
         raw = raw[start:end]
-    
     return raw
 
 def generate_chain(text: str):
@@ -91,24 +86,20 @@ def generate_chain(text: str):
             max_tokens=1024
         )
         raw = resp.choices[0].message.content
-        
-        # Log raw for debugging
         print(f"📝 Raw response length: {len(raw)}")
-        print(f"📝 Raw preview: {raw[:400]}...")
+        print(f"📝 Raw preview: {raw[:500]}...")
         
         cleaned = extract_json(raw)
-        print(f"📝 Cleaned: {cleaned[:300]}...")
+        print(f"📝 Cleaned JSON: {cleaned[:300]}...")
         
         result = json.loads(cleaned)
-        
-        # Validate required fields
-        if 'final_impact' not in result:
-            print("⚠️ Missing 'final_impact' in response")
+        # Validate
+        if 'event_summary' not in result:
+            print("⚠️ Missing 'event_summary' in response")
             return None
-        if 'primary_asset' not in result.get('final_impact', {}):
-            print("⚠️ Missing 'primary_asset' in final_impact")
+        if 'final_impact' not in result or 'primary_asset' not in result['final_impact']:
+            print("⚠️ Missing final_impact.primary_asset")
             return None
-        
         return result
         
     except json.JSONDecodeError as e:
@@ -124,10 +115,8 @@ def generate_chain(text: str):
 def save_to_db(chain: dict, title: str):
     if not chain:
         return
-    
     transmission = chain.get("transmission_channels", [{}])[0]
     final_impact = chain.get("final_impact", {})
-    
     data = {
         "event_title": title[:100],
         "event_date": datetime.now().date().isoformat(),
@@ -143,7 +132,6 @@ def save_to_db(chain: dict, title: str):
         "verification_status": "pending",
         "source": "RSS"
     }
-    
     try:
         supabase.table("causal_chains").insert(data).execute()
         print(f"✅ Saved: {title[:40]}...")
@@ -154,7 +142,6 @@ def main():
     print(f"🚀 Ingest started: {datetime.now()}")
     news = fetch_rss()
     print(f"📰 Fetched {len(news)} articles")
-    
     success = 0
     for idx, item in enumerate(news, 1):
         print(f"\n🔹 [{idx}/{len(news)}] Processing: {item[:50]}...")
@@ -162,7 +149,6 @@ def main():
         if chain:
             save_to_db(chain, item)
             success += 1
-    
     print(f"\n✅ Done: {success}/{len(news)} successful")
 
 if __name__ == "__main__":
