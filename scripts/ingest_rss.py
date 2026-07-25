@@ -17,26 +17,27 @@ nvidia_client = OpenAI(
 )
 
 PROMPT_TEMPLATE = """
-你是一个金融因果推理专家。以下是一条金融新闻，请生成严格的 JSON 格式的因果推理链。
+You are a financial causal reasoning expert. Analyze the following financial news and generate a causal reasoning chain in JSON format only.
 
-新闻：{event}
+News: {event}
 
-JSON 格式要求（必须严格遵循此格式，不要添加任何其他文本或注释）：
+Output strictly JSON with this structure:
 {
-  "event_summary": "一句话摘要",
-  "trigger": {"entity": "主体公司代码或名称", "action": "动作", "unexpected": "超预期点"},
+  "event_summary": "brief summary of the event",
+  "trigger": {"entity": "company or asset code", "action": "what happened"},
   "transmission_channels": [
-    {"step": 1, "channel": "direct|supply_chain|competitor|sector|macro", "description": "描述", "affected_assets": ["AAPL"], "direction": "up", "probability": 0.8}
+    {"step": 1, "channel": "direct|supply_chain|competitor|sector|macro", "description": "how it propagates", "affected_assets": ["CODE"], "direction": "up/down/neutral", "probability": 0.8}
   ],
-  "final_impact": {"primary_asset": "AAPL", "direction": "up", "probability": 0.8, "reasoning": "理由"},
-  "category": "Tech",
+  "final_impact": {"primary_asset": "CODE", "direction": "up/down/neutral", "probability": 0.8, "reasoning": "why"},
+  "category": "Tech|Finance|Energy|Macro|Consumer|Healthcare|RealEstate|Other",
   "confidence": 0.8
 }
 
-只输出 JSON，不要任何额外文字。
+Only JSON, no extra text.
 """
 
 def fetch_rss():
+    """Fetch from 7 RSS sources, return up to 50 unique articles"""
     feeds = [
         "https://www.cnbc.com/id/100003114/device/rss/rss.html",
         "https://finance.yahoo.com/news/rssindex",
@@ -53,62 +54,74 @@ def fetch_rss():
             for entry in feed.entries[:10]:
                 articles.append(entry.title)
         except Exception as e:
-            print(f"⚠️ RSS 源 {url} 解析失败: {e}")
+            print(f"⚠️ RSS feed failed: {url} - {e}")
             continue
-    unique_articles = list(dict.fromkeys(articles))
-    return unique_articles[:50]
+    # Remove duplicates
+    seen = set()
+    unique = []
+    for a in articles:
+        if a not in seen:
+            seen.add(a)
+            unique.append(a)
+    return unique[:50]
 
-def extract_json(raw):
-    """从混合文本中提取 JSON"""
-    # 尝试找 ```json ... ``` 代码块
+def extract_json(raw: str) -> str:
+    """Extract clean JSON from mixed text response"""
     if "```json" in raw:
         raw = raw.split("```json")[1].split("```")[0].strip()
     elif "```" in raw:
         raw = raw.split("```")[1].split("```")[0].strip()
     
-    # 尝试找第一个 { 和最后一个 }
     start = raw.find('{')
     end = raw.rfind('}') + 1
     if start != -1 and end > start:
         raw = raw[start:end]
     
-    # 清理换行符和多余空格
-    raw = re.sub(r'\n\s*', ' ', raw)
     return raw
 
-def generate_chain(text):
+def generate_chain(text: str):
     try:
         resp = nvidia_client.chat.completions.create(
-            model="meta/llama-3.1-70b-instruct",
+            model="z-ai/glm-5.2",
             messages=[
-                {"role": "system", "content": "你是一个金融因果推理专家。只输出有效的JSON格式数据，不要添加任何额外文字、注释或解释。"},
+                {"role": "system", "content": "You are a financial expert. Output only valid JSON. No extra text."},
                 {"role": "user", "content": PROMPT_TEMPLATE.format(event=text)}
             ],
-            temperature=0.1,  # 降低温度使输出更确定
+            temperature=0.1,
             max_tokens=1024
         )
         raw = resp.choices[0].message.content
-        print(f"📝 原始返回: {raw[:300]}...")
         
-        # 尝试提取 JSON
+        # Log raw for debugging
+        print(f"📝 Raw response length: {len(raw)}")
+        print(f"📝 Raw preview: {raw[:400]}...")
+        
         cleaned = extract_json(raw)
+        print(f"📝 Cleaned: {cleaned[:300]}...")
+        
         result = json.loads(cleaned)
         
-        # 验证必要字段
-        if 'final_impact' not in result or 'primary_asset' not in result.get('final_impact', {}):
-            print(f"⚠️ 缺少必要字段: final_impact.primary_asset")
+        # Validate required fields
+        if 'final_impact' not in result:
+            print("⚠️ Missing 'final_impact' in response")
             return None
+        if 'primary_asset' not in result.get('final_impact', {}):
+            print("⚠️ Missing 'primary_asset' in final_impact")
+            return None
+        
         return result
         
     except json.JSONDecodeError as e:
-        print(f"⚠️ JSON 解析失败: {e}")
-        print(f"⚠️ 处理后内容: {cleaned[:300] if 'cleaned' in locals() else '空响应'}")
+        print(f"❌ JSON decode error: {e}")
+        print(f"❌ Failed content:\n{raw[:1000] if 'raw' in locals() else 'empty'}")
         return None
     except Exception as e:
-        print(f"⚠️ API 调用失败: {e}")
+        print(f"❌ API error: {type(e).__name__}: {e}")
+        if 'raw' in locals():
+            print(f"❌ Raw response:\n{raw[:500]}")
         return None
 
-def save_to_db(chain, title):
+def save_to_db(chain: dict, title: str):
     if not chain:
         return
     
@@ -130,27 +143,27 @@ def save_to_db(chain, title):
         "verification_status": "pending",
         "source": "RSS"
     }
+    
     try:
         supabase.table("causal_chains").insert(data).execute()
-        print(f"✅ 入库成功: {title[:30]}...")
+        print(f"✅ Saved: {title[:40]}...")
     except Exception as e:
-        print(f"❌ 入库失败: {e}")
-        print(f"❌ 数据: {data}")
+        print(f"❌ DB insert failed: {e}")
 
 def main():
-    print(f"🚀 因果链抓取开始: {datetime.now()}")
+    print(f"🚀 Ingest started: {datetime.now()}")
     news = fetch_rss()
-    print(f"📰 共抓取 {len(news)} 条新闻")
-    success_count = 0
+    print(f"📰 Fetched {len(news)} articles")
+    
+    success = 0
     for idx, item in enumerate(news, 1):
-        print(f"🧠 [{idx}/{len(news)}] 处理: {item[:40]}...")
+        print(f"\n🔹 [{idx}/{len(news)}] Processing: {item[:50]}...")
         chain = generate_chain(item)
         if chain:
             save_to_db(chain, item)
-            success_count += 1
-        else:
-            print(f"⏭️ 跳过: {item[:30]}...")
-    print(f"✅ 完成: 成功 {success_count}/{len(news)} 条")
+            success += 1
+    
+    print(f"\n✅ Done: {success}/{len(news)} successful")
 
 if __name__ == "__main__":
     main()
