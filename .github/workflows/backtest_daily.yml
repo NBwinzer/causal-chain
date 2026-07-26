@@ -1,8 +1,10 @@
 name: 每日回测验证
+
 on:
   schedule:
-    - cron: '0 2 * * *'
+    - cron: '0 2 * * *'   # UTC 02:00 → 北京时间 10:00
   workflow_dispatch:
+
 jobs:
   run:
     runs-on: ubuntu-latest
@@ -18,4 +20,5 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
         run: python scripts/backtest_evolve.py
