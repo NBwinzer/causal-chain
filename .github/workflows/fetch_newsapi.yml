@@ -1,7 +1,8 @@
 name: NewsAPI新闻抓取
 on:
   schedule:
-    - cron: '0 4 * * *'
+    - cron: '10 22 * * *'  # UTC 22:10 → 北京时间 06:10
+    - cron: '10 12 * * *'  # UTC 12:10 → 北京时间 20:10
   workflow_dispatch:
 jobs:
   run:
