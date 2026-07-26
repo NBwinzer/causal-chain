@@ -1,6 +1,7 @@
 import os
 import json
 import finnhub
+import time
 from datetime import datetime, timezone, timedelta
 from supabase import create_client, Client
 
@@ -19,6 +20,8 @@ def get_price(symbol: str, date_str: str):
         date_obj = datetime.strptime(date_str, '%Y-%m-%d')
         start_ts = int(date_obj.timestamp())
         end_ts = start_ts + 24 * 60 * 60
+        
+        time.sleep(0.5)  # 每次调用间隔 0.5 秒，避免限流
         
         res = finnhub_client.stock_candles(symbol, 'D', start_ts, end_ts)
         if res.get('s') == 'ok' and res.get('c'):
@@ -95,7 +98,6 @@ def run_backtest():
         
         new_weight = max(0.1, min(2.0, occ.get('occurrence_weight', 1.0) + weight_delta))
         
-        # 存储价格并更新状态
         supabase.table('path_occurrences').update({
             'verification_status': status,
             'verified_at': datetime.now(timezone.utc).isoformat(),
@@ -110,7 +112,6 @@ def run_backtest():
             }
         }).eq('id', occ['id']).execute()
         
-        # ===== 更新路径权重 =====
         path_id = occ.get('path_id')
         if path_id:
             path_res = supabase.table('causal_paths') \
