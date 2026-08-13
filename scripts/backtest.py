@@ -1,118 +1,171 @@
-#!/usr/bin/env python3
-"""
-Inchest 回测脚本 - 使用 yfinance（免费）
-读取 path_occurrences 表，获取实际价格，更新验证状态
-"""
-
 import os
-import json
-import time
-from datetime import datetime, timedelta
+import re
 import yfinance as yf
 from supabase import create_client
+from datetime import datetime, timedelta
+import time
 
-# 配置
+# Supabase 配置（从环境变量读取）
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise ValueError("Missing SUPABASE_URL or SUPABASE_KEY")
+
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-def get_price(symbol, date):
-    """获取指定日期的收盘价"""
-    if not symbol:
+# 常见资产代码映射（如果标题中无法直接提取，可用此表）
+TICKER_MAP = {
+    "NVIDIA": "NVDA",
+    "Apple": "AAPL",
+    "Microsoft": "MSFT",
+    "Amazon": "AMZN",
+    "Google": "GOOGL",
+    "Tesla": "TSLA",
+    "Meta": "META",
+    "Netflix": "NFLX",
+    "S&P 500": "^GSPC",
+    "Dow Jones": "^DJI",
+    "Nasdaq": "^IXIC",
+    "Oil": "CL=F",
+    "Gold": "GC=F",
+}
+
+def extract_ticker(text):
+    """从事件标题中提取股票代码或资产名称"""
+    if not text:
         return None
-    try:
-        ticker = yf.Ticker(symbol)
-        hist = ticker.history(start=date - timedelta(days=1), end=date + timedelta(days=1))
-        if not hist.empty:
-            return hist['Close'].iloc[-1]
-    except Exception as e:
-        print(f"⚠️ {symbol} 价格获取失败: {e}")
+    
+    # 1. 先尝试匹配标准股票代码（大写字母 2-5 个）
+    match = re.search(r'\b([A-Z]{2,5})\b', text)
+    if match:
+        ticker = match.group(1)
+        # 过滤掉常见非股票词
+        if ticker not in ["AI", "CEO", "CFO", "IPO", "ETF", "FED", "CPI", "GDP"]:
+            return ticker
+    
+    # 2. 检查映射表
+    for name, ticker in TICKER_MAP.items():
+        if name in text:
+            return ticker
+    
     return None
 
-def get_price_after_days(symbol, event_date, days=5):
-    """获取事件发生后第 N 天的收盘价"""
-    target_date = event_date + timedelta(days=days)
+def get_price_change(ticker, date_str, days=5):
+    """获取指定日期后 N 天的价格变化百分比"""
     try:
-        ticker = yf.Ticker(symbol)
-        hist = ticker.history(start=event_date - timedelta(days=1), end=target_date + timedelta(days=2))
-        if not hist.empty:
-            for idx in hist.index:
-                if idx.date() >= target_date:
-                    return hist.loc[idx]['Close']
-            return hist['Close'].iloc[-1]
+        start = datetime.strptime(date_str, "%Y-%m-%d")
+        end = start + timedelta(days=days + 1)
+        stock = yf.Ticker(ticker)
+        hist = stock.history(start=start.strftime("%Y-%m-%d"), end=end.strftime("%Y-%m-%d"))
+        
+        if hist.empty or len(hist) < 2:
+            return None
+        
+        open_price = hist["Open"].iloc[0]
+        close_price = hist["Close"].iloc[-1]
+        change_pct = (close_price - open_price) / open_price * 100
+        return change_pct
     except Exception as e:
-        print(f"⚠️ {symbol} 价格获取失败: {e}")
-    return None
+        print(f"⚠️ 获取 {ticker} 数据失败: {e}")
+        return None
 
 def main():
-    print(f"🚀 启动回测: {datetime.now()}")
-
-    # 获取待回测的记录（最近 30 天的事件，且尚未验证）
-    cutoff = (datetime.now() - timedelta(days=30)).date()
-    pending = supabase.table("path_occurrences")\
+    print(f"🔄 回测任务开始: {datetime.now().isoformat()}")
+    
+    # 1. 查询待回测的记录（按预测日期排序）
+    response = supabase.table("causal_chains")\
         .select("*")\
         .eq("verification_status", "pending")\
-        .gte("trigger_event_date", cutoff.isoformat())\
+        .order("prediction_date", desc=False)\
+        .limit(100)\
         .execute()
-
-    print(f"🔍 找到 {len(pending.data)} 条待回测记录")
-
-    if not pending.data:
-        print("✅ 无待回测记录")
+    
+    records = response.data
+    if not records:
+        print("✅ 没有待回测的记录")
         return
-
+    
+    print(f"📊 找到 {len(records)} 条待回测记录")
+    
     success_count = 0
-    for item in pending.data:
-        idx = item["id"]
-        event_date = datetime.fromisoformat(item["trigger_event_date"]).date()
-        final_impact = item.get("final_impact", {})
-        asset = final_impact.get("asset")
-        predicted = final_impact.get("direction")
-
-        if not asset or not predicted:
-            print(f"⏭️ 跳过 ID={idx}: 缺少 asset 或 direction")
+    fail_count = 0
+    
+    for record in records:
+        record_id = record["id"]
+        event_title = record.get("event_title", "")
+        prediction_date = record.get("prediction_date")
+        causal_chain = record.get("causal_chain", {})
+        final_impact = causal_chain.get("final_impact", {})
+        predicted_direction = final_impact.get("direction")
+        
+        if not prediction_date or not predicted_direction:
+            # 标记为失败，缺少必要字段
+            supabase.table("causal_chains")\
+                .update({"verification_status": "failed"})\
+                .eq("id", record_id)\
+                .execute()
+            fail_count += 1
             continue
-
-        # 获取价格
-        price_after = get_price_after_days(asset, event_date, days=5)
-        if price_after is None:
-            print(f"⏭️ {asset} {event_date} 价格获取失败，跳过")
+        
+        # 提取 ticker
+        ticker = extract_ticker(event_title)
+        if not ticker:
+            # 无法提取代码，跳过并标记失败
+            supabase.table("causal_chains")\
+                .update({"verification_status": "failed"})\
+                .eq("id", record_id)\
+                .execute()
+            print(f"❌ 无法提取代码: {event_title[:40]}...")
+            fail_count += 1
             continue
-
-        price_before = get_price(asset, event_date - timedelta(days=1))
-        if price_before is None:
-            print(f"⏭️ {asset} 基准价格获取失败，跳过")
+        
+        # 获取实际涨跌幅
+        change_pct = get_price_change(ticker, prediction_date, days=5)
+        if change_pct is None:
+            supabase.table("causal_chains")\
+                .update({"verification_status": "failed"})\
+                .eq("id", record_id)\
+                .execute()
+            print(f"❌ 无法获取 {ticker} 数据: {event_title[:40]}...")
+            fail_count += 1
             continue
-
-        # 计算实际方向
-        change_pct = (price_after - price_before) / price_before
-        if change_pct > 0.02:
-            actual = "up"
-        elif change_pct < -0.02:
-            actual = "down"
+        
+        # 判断实际方向
+        if change_pct > 1.0:
+            actual_direction = "up"
+        elif change_pct < -1.0:
+            actual_direction = "down"
         else:
-            actual = "neutral"
-
-        is_correct = (predicted == actual)
-        status = "verified" if is_correct else "failed"
-
+            actual_direction = "neutral"
+        
+        is_correct = predicted_direction == actual_direction
+        
         # 更新数据库
-        supabase.table("path_occurrences").update({
-            "verification_status": status,
-            "actual_outcome": {
-                "direction": actual,
-                "change_percent": round(change_pct * 100, 2),
-                "price_before": price_before,
-                "price_after": price_after
-            },
-            "verified_at": datetime.now().isoformat()
-        }).eq("id", idx).execute()
-
-        print(f"{'✅' if is_correct else '❌'} {asset}: 预测 {predicted} 实际 {actual} ({change_pct*100:.2f}%)")
+        supabase.table("causal_chains")\
+            .update({
+                "verification_status": "verified" if is_correct else "failed",
+                "verified_at": datetime.now().isoformat(),
+                "actual_outcome": {
+                    "direction": actual_direction,
+                    "change_percent": round(change_pct, 2),
+                    "ticker": ticker,
+                    "days": 5,
+                    "predicted": predicted_direction
+                }
+            })\
+            .eq("id", record_id)\
+            .execute()
+        
+        status_emoji = "✅" if is_correct else "❌"
+        print(f"{status_emoji} {ticker} 预测:{predicted_direction} 实际:{actual_direction} ({change_pct:+.1f}%) - {event_title[:30]}...")
         success_count += 1
-        time.sleep(0.5)
+        
+        # 避免请求过快
+        time.sleep(1)
+    
+    print(f"🎉 回测完成: {success_count} 条成功, {fail_count} 条失败")
 
-    print(f"🎉 回测完成，成功处理 {success_count} 条")
 
 if __name__ == "__main__":
     main()
