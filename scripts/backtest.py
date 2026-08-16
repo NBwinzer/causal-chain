@@ -89,7 +89,6 @@ ASSET_TO_TICKER = {
     "VTSAX": "VTI",
     "DGRW": "DGRW",
     "URA": "URA",
-    "URA": "URA",
     "IWM": "IWM",  # 小盘股
     "XLK": "XLK",  # 科技板块
     "XLF": "XLF",  # 金融板块
@@ -143,9 +142,6 @@ ASSET_TO_TICKER = {
     "Dow": "^DJI", "DJI": "^DJI",
     "Nifty": "^NSEI", "NSEI": "^NSEI",
     "IDX": "^JKSE",
-    
-    # ---- 无法识别的将返回 None ----
-    # 对于无法映射的，脚本将跳过并标记为 failed
 }
 
 def get_ticker_from_entity(entity):
@@ -185,7 +181,7 @@ def get_price_change(ticker, event_date, days=5):
 def main():
     print(f"🔄 回测开始: {datetime.now().isoformat()}")
 
-    # 查询待回测记录
+    # 查询待回测记录（每次 100 条）
     response = supabase.table(TABLE_NAME)\
         .select("*")\
         .eq("verification_status", "pending")\
@@ -199,8 +195,13 @@ def main():
 
     print(f"📊 找到 {len(records)} 条待回测记录")
 
-    success_count = 0
-    failed_count = 0
+    # 分类统计
+    verified_count = 0          # 预测正确
+    wrong_count = 0             # 预测错误（数据可获取但方向不对）
+    cannot_identify_count = 0   # 无法识别资产
+    no_data_count = 0           # 无法获取数据（yfinance无数据）
+    missing_fields_count = 0    # 缺少必要字段
+
     failed_entities = []
 
     for rec in records:
@@ -210,38 +211,42 @@ def main():
         entity = rec.get("trigger_entity", "")
         event_date = rec.get("trigger_event_date")
 
+        # 缺少必要字段
         if not event_date or not predicted_dir or not entity:
             supabase.table(TABLE_NAME).update({
                 "verification_status": "failed",
                 "verified_at": datetime.now().isoformat()
             }).eq("id", rec_id).execute()
-            failed_count += 1
+            missing_fields_count += 1
             failed_entities.append(entity or "MISSING")
             print(f"❌ 缺少字段: id={rec_id}")
             continue
 
+        # 无法识别资产
         ticker = get_ticker_from_entity(entity)
         if not ticker:
             supabase.table(TABLE_NAME).update({
                 "verification_status": "failed",
                 "verified_at": datetime.now().isoformat()
             }).eq("id", rec_id).execute()
-            failed_count += 1
+            cannot_identify_count += 1
             failed_entities.append(entity)
             print(f"❌ 无法识别资产: {entity}")
             continue
 
+        # 无法获取数据
         change = get_price_change(ticker, event_date, days=5)
         if change is None:
             supabase.table(TABLE_NAME).update({
                 "verification_status": "failed",
                 "verified_at": datetime.now().isoformat()
             }).eq("id", rec_id).execute()
-            failed_count += 1
+            no_data_count += 1
             failed_entities.append(entity)
-            print(f"❌ 无法获取 {ticker} 数据")
+            print(f"❌ 无数据 {ticker}: {entity}")
             continue
 
+        # 判断实际方向
         if change > 0.5:
             actual_dir = "up"
         elif change < -0.5:
@@ -261,17 +266,45 @@ def main():
             }
         }).eq("id", rec_id).execute()
 
-        status = "✅" if is_correct else "❌"
-        print(f"{status} {entity}({ticker}) 预测:{predicted_dir} 实际:{actual_dir} ({change:+.1f}%)")
-        success_count += 1
+        if is_correct:
+            verified_count += 1
+            print(f"✅ {entity}({ticker}) 预测:{predicted_dir} 实际:{actual_dir} ({change:+.1f}%)")
+        else:
+            wrong_count += 1
+            print(f"❌ 预测错误 {entity}({ticker}) 预测:{predicted_dir} 实际:{actual_dir} ({change:+.1f}%)")
+
         time.sleep(0.5)
 
-    # 输出无法识别的资产统计
-    print("\n📋 无法识别的资产 TOP 10:")
-    for entity, count in Counter(failed_entities).most_common(10):
-        print(f"  {entity}: {count} 次")
+    # 输出详细统计
+    total_processed = verified_count + wrong_count + cannot_identify_count + no_data_count + missing_fields_count
+    total_verifiable = verified_count + wrong_count  # 有数据的
 
-    print(f"\n🎉 回测完成: 成功 {success_count} 条, 失败 {failed_count} 条")
+    print("\n" + "="*60)
+    print("📊 回测统计报告")
+    print("="*60)
+    print(f"总处理: {total_processed} 条")
+    print(f"  ✅ 预测正确: {verified_count} 条")
+    print(f"  ❌ 预测错误: {wrong_count} 条")
+    print(f"  ❌ 无法识别资产: {cannot_identify_count} 条")
+    print(f"  ❌ 无数据: {no_data_count} 条")
+    print(f"  ❌ 缺少字段: {missing_fields_count} 条")
+    print("-"*60)
+    
+    if total_verifiable > 0:
+        accuracy = verified_count / total_verifiable * 100
+        print(f"📈 准确率（仅计算有数据可验证的）: {accuracy:.1f}% ({verified_count}/{total_verifiable})")
+    else:
+        print("📈 没有可验证的数据")
+    
+    print("="*60)
+
+    # 无法识别的资产 TOP 10
+    if failed_entities:
+        print("\n📋 无法识别的资产 TOP 10:")
+        for entity, count in Counter(failed_entities).most_common(10):
+            print(f"  {entity}: {count} 次")
+
+    print(f"\n🎉 回测完成")
 
 if __name__ == "__main__":
     main()
