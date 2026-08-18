@@ -19,9 +19,8 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 TABLE_NAME = "path_occurrences"
 
-# ========== 完整的资产映射表（原样保留） ==========
+# ========== 资产映射表（你原来的） ==========
 ASSET_TO_TICKER = {
-    # ---- 科技股 ----
     "NVDA": "NVDA", "NVIDIA": "NVDA", "NVIDIA Corporation": "NVDA",
     "AAPL": "AAPL", "Apple": "AAPL", "Apple Inc.": "AAPL",
     "MSFT": "MSFT", "Microsoft": "MSFT", "Microsoft Corp": "MSFT",
@@ -42,8 +41,6 @@ ASSET_TO_TICKER = {
     "IBM": "IBM",
     "CSCO": "CSCO", "Cisco": "CSCO",
     "AVGO": "AVGO", "Broadcom": "AVGO",
-    
-    # ---- 金融股 ----
     "JPM": "JPM", "JPMorgan": "JPM", "JPMorgan Chase": "JPM",
     "BAC": "BAC", "Bank of America": "BAC",
     "WFC": "WFC", "Wells Fargo": "WFC",
@@ -52,176 +49,174 @@ ASSET_TO_TICKER = {
     "C": "C", "Citigroup": "C",
     "V": "V", "Visa": "V",
     "MA": "MA", "Mastercard": "MA",
-    
-    # ---- 能源 ----
     "XOM": "XOM", "Exxon": "XOM", "ExxonMobil": "XOM",
     "CVX": "CVX", "Chevron": "CVX",
-    "Oil": "CL=F", "WTI": "CL=F", "Crude": "CL=F",
-    "CL": "CL=F",
-    "Gasoline": "UGA",
-    
-    # ---- 消费 ----
-    "KO": "KO", "Coca-Cola": "KO",
-    "PEP": "PEP", "Pepsi": "PEP",
-    "MCD": "MCD", "McDonald's": "MCD",
-    "NKE": "NKE", "Nike": "NKE",
-    "SBUX": "SBUX", "Starbucks": "SBUX",
-    "DIS": "DIS", "Disney": "DIS",
-    "T": "T", "AT&T": "T",
-    "VZ": "VZ", "Verizon": "VZ",
-    "TMUS": "TMUS", "T-Mobile": "TMUS",
-    "UBER": "UBER",
-    "LYFT": "LYFT",
-    "ABNB": "ABNB", "Airbnb": "ABNB",
-    "EBAY": "EBAY",
-    "SHOP": "SHOP", "Shopify": "SHOP",
-    "RNG": "RNG", "RingCentral": "RNG",
-    "CHTR": "CHTR", "Charter": "CHTR",
-    "DKS": "DKS", "Dick's": "DKS",
-    "PARA": "PARA", "Paramount": "PARA",
-    "WRLD": "WRLD",
-    "BC": "BC", "Brunswick": "BC",
-    "CFR": "CFR",
-    "EME": "EME", "EMCOR": "EME",
-    "CALM": "CALM", "Cal-Maine": "CALM",
-    
-    # ---- ETF / 指数 ----
-    "SPY": "SPY",
-    "S&P 500": "SPY",
-    "SP500": "SPY",
-    "SPX": "^GSPC",
-    "VTSAX": "VTI",
-    "DGRW": "DGRW",
-    "URA": "URA",
-    "IWM": "IWM",
-    "XLK": "XLK",
-    "XLF": "XLF",
-    "XLE": "XLE",
-    "XLV": "XLV",
-    "XLI": "XLI",
-    "XRT": "XRT",
-    "XLP": "XLP",
-    "XLU": "XLU",
-    "VNQ": "VNQ",
-    "GDX": "GDX",
-    "ITA": "ITA",
-    "DRIV": "DRIV",
-    "ICLN": "ICLN",
-    "DBC": "DBC",
-    "EEM": "EEM",
-    "EFA": "EFA",
-    "TLT": "TLT",
-    "SHY": "SHY",
-    "LQD": "LQD",
-    "AGG": "AGG",
-    "AIQ": "AIQ",
-    "SOXX": "SOXX",
-    "IBB": "IBB",
-    "VUG": "VUG",
-    "VTV": "VTV",
-    "VYM": "VYM",
-    "MGC": "MGC",
-    "IPO": "IPO",
-    "MAGA": "MAGA",
-    "REZ": "REZ",
-    "SPCE": "SPCE",
-    "UFO": "UFO",
-    
-    # ---- 加密货币 ----
+    "Oil": "CL=F", "WTI": "CL=F", "Crude": "CL=F", "CL": "CL=F",
+    "SPY": "SPY", "S&P 500": "SPY", "SP500": "SPY", "SPX": "^GSPC",
     "BTC": "BTC-USD", "Bitcoin": "BTC-USD",
     "ETH": "ETH-USD", "Ethereum": "ETH-USD",
-    
-    # ---- 商品 ----
-    "Gold": "GC=F",
-    "GC": "GC=F",
-    
-    # ---- 外汇 ----
-    "USD": "UUP",
-    "GBP": "FXB",
-    "INR": "INR=X",
-    "AUD": "FXA",
-    
-    # ---- 指数 ----
+    "Gold": "GC=F", "GC": "GC=F",
+    "USD": "UUP", "GBP": "FXB", "INR": "INR=X", "AUD": "FXA",
     "Nasdaq": "^IXIC", "IXIC": "^IXIC",
     "Dow": "^DJI", "DJI": "^DJI",
     "Nifty": "^NSEI", "NSEI": "^NSEI",
-    "IDX": "^JKSE",
+    "TLT": "TLT",
+    "VYM": "VYM",
+    "XLF": "XLF",
+    "XLK": "XLK",
+    "XLE": "XLE",
+    "IWM": "IWM",
+    "EEM": "EEM",
+    "EFA": "EFA",
+    "SOXX": "SOXX",
+    "AIQ": "AIQ",
 }
 
-# ==================== 因果路径相关函数 ====================
 
-def extract_keywords(text):
+# ==================== 核心：基于 steps_template 匹配真实路径 ====================
+
+def extract_keywords_from_text(text):
     """
-    从事件标题中提取英文金融关键词，用于匹配 causal_paths
+    从文本中提取英文关键词（小写，去重，长度>=3）
     """
     if not text:
-        return []
-    # 只取英文字母（去掉数字和符号）
-    words = re.findall(r'[a-zA-Z]+', text.lower())
-    # 英文金融关键词白名单
-    finance_keywords = [
-        'rate', 'hike', 'cut', 'fed', 'fomc', 'interest', 'powell',
-        'earnings', 'revenue', 'beat', 'miss', 'eps', 'profit',
-        'cpi', 'inflation', 'pce', 'core', 'price',
-        'jobs', 'unemployment', 'payroll', 'nonfarm',
-        'geopolitical', 'conflict', 'war', 'oil', 'crude', 'gas',
-        'macro', 'data', 'gdp', 'retail', 'sales'
-    ]
-    keywords = [w for w in words if w in finance_keywords]
-    return list(set(keywords))
+        return set()
+    words = re.findall(r'[a-zA-Z]+', str(text).lower())
+    return {w for w in words if len(w) >= 3}
 
 
-def get_or_create_path(keywords, trigger_title):
+def extract_path_keywords(path):
     """
-    根据关键词匹配 causal_paths，如果无匹配则返回 UNKNOWN_GENERIC
-    返回路径对象（包含 id）
+    从真实路径的 steps_template 和 final_impact_template 中提取所有关键词
+    返回: set of keywords
     """
-    # 1. 获取所有现有路径
-    all_paths = supabase.table('causal_paths').select('*').execute().data
+    keywords = set()
     
-    # 2. 尝试匹配（至少一个关键词命中）
+    # 1. 从 steps_template 提取
+    steps = path.get('steps_template')
+    if steps:
+        if isinstance(steps, str):
+            try:
+                steps = json.loads(steps)
+            except:
+                steps = []
+        if isinstance(steps, list):
+            for step in steps:
+                # 提取 affected_assets（最重要）
+                assets = step.get('affected_assets', [])
+                for asset in assets:
+                    if isinstance(asset, str):
+                        keywords.update(extract_keywords_from_text(asset))
+                # 提取 description
+                desc = step.get('description', '')
+                if desc:
+                    keywords.update(extract_keywords_from_text(desc))
+    
+    # 2. 从 final_impact_template 提取
+    final = path.get('final_impact_template')
+    if final:
+        if isinstance(final, str):
+            try:
+                final = json.loads(final)
+            except:
+                final = {}
+        if isinstance(final, dict):
+            # primary_asset
+            primary = final.get('primary_asset')
+            if primary:
+                keywords.update(extract_keywords_from_text(primary))
+            # reasoning
+            reasoning = final.get('reasoning')
+            if reasoning:
+                keywords.update(extract_keywords_from_text(reasoning))
+            # affected_assets
+            assets = final.get('affected_assets', [])
+            for asset in assets:
+                if isinstance(asset, str):
+                    keywords.update(extract_keywords_from_text(asset))
+    
+    # 3. 从 path_signature 补一点（兜底）
+    sig = path.get('path_signature', '')
+    if sig:
+        keywords.update(extract_keywords_from_text(sig))
+    
+    return keywords
+
+
+def build_path_index(all_paths):
+    """
+    构建路径索引: [(path_obj, keywords_set), ...]
+    排除 UNKNOWN_GENERIC（作为兜底）
+    """
+    indexed = []
     for path in all_paths:
-        path_keywords = path.get('trigger_keywords', [])
-        if set(keywords) & set(path_keywords):
-            return path
+        if path.get('path_signature') == 'UNKNOWN_GENERIC':
+            continue
+        keywords = extract_path_keywords(path)
+        if keywords:
+            indexed.append((path, keywords))
+        else:
+            # 如果路径完全没有关键词（理论上不会），用 path_signature 做最低匹配
+            sig_keywords = extract_keywords_from_text(path.get('path_signature', ''))
+            if sig_keywords:
+                indexed.append((path, sig_keywords))
+    return indexed
+
+
+def match_path_by_event(event_title, path_index):
+    """
+    用事件标题匹配路径索引
+    返回: (path_obj, score) 或 (None, 0)
+    """
+    if not event_title or not path_index:
+        return None, 0
     
-    # 3. 无匹配 → 使用 UNKNOWN_GENERIC（如果不存在则创建）
-    unknown = next((p for p in all_paths if p['path_signature'] == 'UNKNOWN_GENERIC'), None)
-    if not unknown:
-        new_path = {
-            'path_signature': 'UNKNOWN_GENERIC',
-            'path_description': 'Uncategorized fallback path',
-            'trigger_type': 'UNKNOWN',
-            'trigger_keywords': []
-        }
-        resp = supabase.table('causal_paths').insert(new_path).execute()
-        unknown = resp.data[0]
-    return unknown
+    event_words = extract_keywords_from_text(event_title)
+    if not event_words:
+        return None, 0
+    
+    best_path = None
+    best_score = 0.0
+    
+    for path, path_keywords in path_index:
+        intersection = event_words & path_keywords
+        if not intersection:
+            continue
+        
+        # 得分 = 交集中关键词数量 / 路径关键词总数量（路径关键词越少越精准）
+        # 再加一个加权：如果交集中包含 "asset" 类的词，权重更高（但我们做统一处理）
+        score = len(intersection) / len(path_keywords) if path_keywords else 0
+        
+        # 如果匹配到了完整的关键词集合，额外加分
+        if intersection == path_keywords and len(path_keywords) > 0:
+            score += 0.3
+        
+        if score > best_score:
+            best_score = score
+            best_path = path
+    
+    # 阈值：得分低于 0.15 视为不匹配（避免误匹配）
+    if best_score < 0.15:
+        return None, 0
+    
+    return best_path, best_score
 
 
-# ==================== 原有资产识别与价格获取函数 ====================
+# ==================== 资产识别 ====================
 
 def get_ticker_from_entity(entity):
-    """从 trigger_entity 提取 ticker（精确匹配 + 部分匹配）"""
     if not entity:
         return None
-    
     if entity in ASSET_TO_TICKER:
         return ASSET_TO_TICKER[entity]
-    
     entity_lower = entity.lower()
     for name, ticker in ASSET_TO_TICKER.items():
         if name.lower() in entity_lower:
             return ticker
-    
     return None
 
 
 def get_price_change(ticker, event_date, days=5):
-    """
-    获取事件发生后 days 个交易日内的涨跌幅（%）
-    返回 float 或 None
-    """
     try:
         if isinstance(event_date, str):
             start = datetime.strptime(event_date, "%Y-%m-%d")
@@ -235,7 +230,7 @@ def get_price_change(ticker, event_date, days=5):
         open_price = hist["Open"].iloc[0]
         close_price = hist["Close"].iloc[-1]
         return (close_price - open_price) / open_price * 100
-    except Exception as e:
+    except Exception:
         return None
 
 
@@ -244,7 +239,29 @@ def get_price_change(ticker, event_date, days=5):
 def main():
     print(f"🔄 回测开始: {datetime.now().isoformat()}")
 
-    # 查询待回测记录（每次 100 条）
+    # ---- 1. 加载所有路径，构建索引 ----
+    all_paths = supabase.table('causal_paths').select('*').execute().data
+    print(f"📚 加载 {len(all_paths)} 条路径，构建匹配索引...")
+    
+    path_index = build_path_index(all_paths)
+    print(f"   ✅ {len(path_index)} 条真实路径参与匹配（UNKNOWN_GENERIC 作为兜底）")
+    
+    # 显示几条路径的关键词示例（调试用）
+    for path, keywords in path_index[:3]:
+        print(f"   📌 {path.get('path_signature', '')[:12]}... -> {len(keywords)} 个关键词")
+
+    # 获取 UNKNOWN_GENERIC
+    unknown_path = next((p for p in all_paths if p['path_signature'] == 'UNKNOWN_GENERIC'), None)
+    if not unknown_path:
+        resp = supabase.table('causal_paths').insert({
+            'path_signature': 'UNKNOWN_GENERIC',
+            'path_description': '未分类通用路径（兜底）',
+            'trigger_type': 'UNKNOWN',
+            'trigger_keywords': []
+        }).execute()
+        unknown_path = resp.data[0]
+
+    # ---- 2. 查询待回测记录 ----
     response = supabase.table(TABLE_NAME)\
         .select("*")\
         .eq("verification_status", "pending")\
@@ -258,35 +275,41 @@ def main():
 
     print(f"📊 找到 {len(records)} 条待回测记录")
 
-    # 统计分类
-    correct_count = 0          # 预测正确
-    wrong_count = 0            # 预测错误（有数据）
-    deleted_no_ticker = 0      # 无法识别资产 → 删除
-    deleted_no_data = 0        # 无数据 → 删除
-    missing_fields = 0         # 缺少字段 → 删除
+    # ---- 3. 统计 ----
+    correct_count = 0
+    wrong_count = 0
+    deleted_no_ticker = 0
+    deleted_no_data = 0
+    missing_fields = 0
+    matched_to_real = 0
+    matched_to_unknown = 0
 
     for rec in records:
         rec_id = rec["id"]
         final_impact = rec.get("final_impact", {})
-        # 如果 final_impact 是字符串，尝试解析 JSON
         if isinstance(final_impact, str):
             try:
                 final_impact = json.loads(final_impact)
             except:
                 final_impact = {}
+        
         predicted_dir = final_impact.get("direction", "")
+        # 处理 up|down 这种多值
+        if '|' in predicted_dir:
+            predicted_dir = predicted_dir.split('|')[0]
+        
         entity = rec.get("trigger_entity", "")
         event_date = rec.get("trigger_event_date")
         trigger_title = rec.get("trigger_event_title", "")
 
-        # ---- 1. 缺少必要字段 → 删除 ----
+        # ---- 缺少字段 → 删除 ----
         if not event_date or not predicted_dir or not entity:
             supabase.table(TABLE_NAME).delete().eq("id", rec_id).execute()
             missing_fields += 1
             print(f"🗑️ 缺少字段，删除: id={rec_id}")
             continue
 
-        # ---- 2. 无法识别资产 → 删除 ----
+        # ---- 无法识别资产 → 删除 ----
         ticker = get_ticker_from_entity(entity)
         if not ticker:
             supabase.table(TABLE_NAME).delete().eq("id", rec_id).execute()
@@ -294,7 +317,7 @@ def main():
             print(f"🗑️ 无法识别资产，删除: {entity}")
             continue
 
-        # ---- 3. 获取实际价格 ----
+        # ---- 获取价格 ----
         change = get_price_change(ticker, event_date, days=5)
         if change is None:
             supabase.table(TABLE_NAME).delete().eq("id", rec_id).execute()
@@ -302,13 +325,7 @@ def main():
             print(f"🗑️ 无数据，删除: {ticker} ({entity})")
             continue
 
-        # ---- 4. 有数据 → 进行路径匹配与统计 ----
-        # 提取关键词，匹配 causal_paths
-        keywords = extract_keywords(trigger_title)
-        path_obj = get_or_create_path(keywords, trigger_title)
-        path_id = path_obj['id']
-
-        # 判断实际方向
+        # ---- 判断实际方向 ----
         if change > 0.5:
             actual_dir = "up"
         elif change < -0.5:
@@ -318,7 +335,19 @@ def main():
 
         is_correct = (predicted_dir == actual_dir)
 
-        # ---- 5. 调用 RPC 更新路径统计 ----
+        # ---- ⭐ 核心：用 steps_template 匹配真实路径 ----
+        matched_path, score = match_path_by_event(trigger_title, path_index)
+        
+        if matched_path:
+            path_id = matched_path['id']
+            matched_to_real += 1
+            print(f"   🎯 匹配到路径: {matched_path.get('path_signature', '')[:12]}... (得分: {score:.2f})")
+        else:
+            path_id = unknown_path['id']
+            matched_to_unknown += 1
+            print(f"   ⚠️ 无匹配路径 (最高分: {score:.2f})，使用 UNKNOWN_GENERIC")
+
+        # ---- 更新路径统计 ----
         try:
             supabase.rpc('update_path_stats', {
                 'p_path_id': path_id,
@@ -328,9 +357,9 @@ def main():
                 'p_ticker': ticker
             }).execute()
         except Exception as e:
-            print(f"⚠️ 更新路径统计失败: {e}")
+            print(f"   ⚠️ 更新路径统计失败: {e}")
 
-        # ---- 6. 更新原记录 ----
+        # ---- 更新原记录 ----
         supabase.table(TABLE_NAME).update({
             "verification_status": "verified" if is_correct else "failed",
             "verified_at": datetime.now().isoformat(),
@@ -351,7 +380,7 @@ def main():
 
         time.sleep(0.5)
 
-    # ---- 输出统计 ----
+    # ---- 统计报告 ----
     total_processed = correct_count + wrong_count + deleted_no_ticker + deleted_no_data + missing_fields
     total_verifiable = correct_count + wrong_count
 
@@ -365,10 +394,13 @@ def main():
     print(f"  🗑️ 删除（无数据）: {deleted_no_data} 条")
     print(f"  🗑️ 删除（缺少字段）: {missing_fields} 条")
     print("-"*60)
+    print(f"  🎯 匹配到真实路径: {matched_to_real} 条")
+    print(f"  ⚠️ 落到 UNKNOWN_GENERIC: {matched_to_unknown} 条")
+    print("-"*60)
     
     if total_verifiable > 0:
         accuracy = correct_count / total_verifiable * 100
-        print(f"📈 准确率（仅计算有数据可验证的）: {accuracy:.1f}% ({correct_count}/{total_verifiable})")
+        print(f"📈 准确率: {accuracy:.1f}% ({correct_count}/{total_verifiable})")
     else:
         print("📈 没有可验证的数据")
     
