@@ -72,7 +72,6 @@ ASSET_TO_TICKER = {
 
 
 def get_ticker_from_entity(entity):
-    """从 trigger_entity 提取 ticker"""
     if not entity:
         return None
     if entity in ASSET_TO_TICKER:
@@ -85,10 +84,6 @@ def get_ticker_from_entity(entity):
 
 
 def get_price_change(ticker, event_date, days=5):
-    """
-    获取事件发生后 days 个交易日的涨跌幅
-    返回: (change_percent, actual_direction) 或 (None, None)
-    """
     try:
         if isinstance(event_date, str):
             start = datetime.strptime(event_date, "%Y-%m-%d")
@@ -109,29 +104,32 @@ def get_price_change(ticker, event_date, days=5):
         else:
             direction = "neutral"
         return change, direction
-    except Exception as e:
+    except Exception:
         return None, None
 
 
 def main():
     print(f"🔄 回测开始: {datetime.now().isoformat()}")
 
-    # ===== 只查询有 path_id 的 pending 记录（安全过滤） =====
+    # ===== 只处理 14 天前的记录 =====
+    cutoff_date = (datetime.now() - timedelta(days=14)).strftime("%Y-%m-%d")
+
+    # ===== 每次处理 500 条 =====
     response = supabase.table(TABLE_NAME)\
         .select("*")\
         .eq("verification_status", "pending")\
         .not_.is_("path_id", "null")\
-        .limit(100)\
+        .lt("trigger_event_date", cutoff_date)\
+        .limit(500)\
         .execute()
 
     records = response.data
     if not records:
-        print("✅ 没有待回测的记录（所有 pending 记录都有 path_id，或已处理完毕）")
+        print("✅ 没有待回测的记录（14天前的记录已全部处理）")
         return
 
-    print(f"📊 找到 {len(records)} 条待回测记录")
+    print(f"📊 找到 {len(records)} 条待回测记录（事件日期 < {cutoff_date}）")
 
-    # 统计
     stats = {
         "correct": 0,
         "wrong": 0,
@@ -144,32 +142,28 @@ def main():
     for rec in records:
         rec_id = rec["id"]
         path_id = rec.get("path_id")
-        
-        # 解析 final_impact
+
         final_impact = rec.get("final_impact", {})
         if isinstance(final_impact, str):
             try:
                 final_impact = json.loads(final_impact)
             except:
                 final_impact = {}
-        
+
         predicted_dir = final_impact.get("direction", "")
-        # 处理 up|down 多值
         if '|' in predicted_dir:
             predicted_dir = predicted_dir.split('|')[0]
-        
+
         entity = rec.get("trigger_entity", "")
         event_date = rec.get("trigger_event_date")
         trigger_title = rec.get("trigger_event_title", "")
 
-        # ---- 检查必要字段 ----
         if not event_date or not predicted_dir or not entity or not path_id:
             supabase.table(TABLE_NAME).delete().eq("id", rec_id).execute()
             stats["bad_fields"] += 1
             print(f"🗑️ 缺少字段，删除: id={rec_id}")
             continue
 
-        # ---- 识别 ticker ----
         ticker = get_ticker_from_entity(entity)
         if not ticker:
             supabase.table(TABLE_NAME).delete().eq("id", rec_id).execute()
@@ -177,7 +171,6 @@ def main():
             print(f"🗑️ 无法识别资产，删除: {entity}")
             continue
 
-        # ---- 获取价格数据 ----
         change, actual_dir = get_price_change(ticker, event_date, days=5)
         if change is None:
             supabase.table(TABLE_NAME).delete().eq("id", rec_id).execute()
@@ -185,10 +178,8 @@ def main():
             print(f"🗑️ 无数据，删除: {ticker} ({entity})")
             continue
 
-        # ---- 判断是否正确 ----
         is_correct = (predicted_dir == actual_dir)
 
-        # ---- 更新路径统计 ----
         try:
             supabase.rpc('update_path_stats', {
                 'p_path_id': path_id,
@@ -200,10 +191,7 @@ def main():
         except Exception as e:
             stats["db_error"] += 1
             print(f"⚠️ 更新路径统计失败: {e}")
-            # 即使失败，也继续更新记录状态
-            # 不跳过，让记录被标记
 
-        # ---- 更新原记录 ----
         supabase.table(TABLE_NAME).update({
             "verification_status": "verified" if is_correct else "failed",
             "verified_at": datetime.now().isoformat(),
@@ -223,7 +211,6 @@ def main():
 
         time.sleep(0.3)
 
-    # ---- 统计报告 ----
     total_processed = sum(stats.values())
     total_verifiable = stats["correct"] + stats["wrong"]
 
@@ -238,13 +225,13 @@ def main():
     print(f"  🗑️ 删除（缺少字段）: {stats['bad_fields']} 条")
     print(f"  ⚠️ 数据库错误: {stats['db_error']} 条")
     print("-" * 60)
-    
+
     if total_verifiable > 0:
         accuracy = stats["correct"] / total_verifiable * 100
         print(f"📈 准确率: {accuracy:.1f}% ({stats['correct']}/{total_verifiable})")
     else:
         print("📈 没有可验证的数据")
-    
+
     print("=" * 60)
     print(f"\n🎉 回测完成")
 
